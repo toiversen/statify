@@ -4,7 +4,7 @@ from pandas.core.frame import DataFrame
 import requests
 import pandas as pd
 
-def grab_access_token():
+def grab_access_token() -> str:
     '''
     Request new access token from Spotify Auth
     '''
@@ -85,7 +85,7 @@ def main():
     '''
     Entry point
     '''
-    access_token = grab_access_token
+    access_token = grab_access_token()
     df = grab_data(access_token)
     print(df.head())
     df.to_csv('tracks.csv')
