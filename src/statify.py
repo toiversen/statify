@@ -3,10 +3,16 @@ from dotenv import load_dotenv
 from pandas.core.frame import DataFrame
 import requests
 import pandas as pd
+import streamlit as st
+import numpy as np
+    
+st.set_page_config(layout='wide')
 
-def grab_access_token() -> str:
+
+@st.cache(ttl=7200, suppress_st_warning=True, allow_output_mutation=True)
+def grab_data() -> DataFrame:
     '''
-    Request new access token from Spotify Auth
+    Grab data from Spotify API
     '''
     load_dotenv()
     CLIENT_ID = os.getenv('CLIENT_ID')
@@ -26,13 +32,7 @@ def grab_access_token() -> str:
 
     # save the access token
     access_token = auth_response_data['access_token']
-    return access_token
 
-
-def grab_data(access_token: str) -> DataFrame:
-    '''
-    Grab data from Spotify API
-    '''
     # hold track info
     data = []
 
@@ -73,23 +73,67 @@ def grab_data(access_token: str) -> DataFrame:
     # make a dataframe for the track data
     df = pd.DataFrame(data)
 
-    # proper date format
+    # housekeeping
     df['release_date'] = pd.to_datetime(df['release_date'])
-    df.drop(columns=['type', 'uri', 'track_href', 'analysis_url'], inplace=True)
+    df.drop(columns=['type', 'uri', 'track_href', 'analysis_url', 'album_id', 'id'], inplace=True)
+    df = df.reindex(columns=['track_name',
+                             'album_name',
+                             'energy',
+                             'danceability',
+                             'speechiness',
+                             'acousticness',
+                             'instrumentalness',
+                             'liveness',
+                             'valence',
+                             'tempo',
+                             'key',
+                             'mode',
+                             'loudness',
+                             'time_signature',
+                             'duration_ms',
+                             'release_date'])
+    df.set_index('track_name', inplace=True)
 
     # return the data frame
     return df    
 
 
-def main():
-    '''
-    Entry point
-    '''
-    access_token = grab_access_token()
-    df = grab_data(access_token)
-    print(df.head())
-    df.to_csv('tracks.csv')
+# Get some data
+df = grab_data()
+
+# List of albums. Call set to avoid duplicates
+album_names = sorted(set(df['album_name'].to_numpy(dtype=str)))
+
+# List of metrics to look at
+metrics = ['energy',
+           'danceability',
+           'speechiness', 
+           'acousticness', 
+           'instrumentalness', 
+           'liveness', 
+           'valence', 
+           'tempo',
+           'key',
+           'mode',
+           'loudness',
+           'time_signature',
+           'duration_ms']
 
 
-if __name__ == "__main__":
-    main()
+### Streamlit ####
+
+st.title('BAND-MAID vs. Spotify')
+
+st.dataframe(df)
+
+with st.form('album_metrics_form', clear_on_submit=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_album = str(st.selectbox('Select an album', options=album_names))
+    with col2:
+        selected_metric = st.selectbox('Select a metric', options=metrics)
+    submitted = st.form_submit_button('OK')
+    if submitted:
+        st.write(f'Plotting {selected_metric} for {selected_album}')
+        df2 = df[(df['album_name'] == selected_album)][selected_metric]
+        st.line_chart(df2, height=500)
