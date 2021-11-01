@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 from pandas.core.frame import DataFrame
 import requests
 import pandas as pd
@@ -8,17 +8,18 @@ import numpy as np
     
 st.set_page_config(layout='wide')
 
+CLIENT_ID = st.secrets["CLIENT_ID"]
+CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
 
-@st.cache(ttl=7200, suppress_st_warning=True, allow_output_mutation=True)
+AUTH_URL = 'https://accounts.spotify.com/api/token'
+
+
+@st.cache(ttl=7200, suppress_st_warning=True, allow_output_mutation=True, persist=True)
 def grab_data() -> DataFrame:
     '''
     Grab data from Spotify API
     '''
-    load_dotenv()
-    CLIENT_ID = os.getenv('CLIENT_ID')
-    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-
-    AUTH_URL = 'https://accounts.spotify.com/api/token'
+    #load_dotenv()
 
     # POST
     auth_response = requests.post(AUTH_URL, {
