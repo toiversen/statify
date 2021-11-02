@@ -1,5 +1,3 @@
-import os
-#from dotenv import load_dotenv
 from pandas.core.frame import DataFrame
 import requests
 import pandas as pd
@@ -13,19 +11,13 @@ CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
 
 AUTH_URL = 'https://accounts.spotify.com/api/token'
 
-
-@st.cache(ttl=7200, suppress_st_warning=True, allow_output_mutation=True, persist=True)
-def grab_data() -> DataFrame:
-    '''
-    Grab data from Spotify API
-    '''
-    #load_dotenv()
-
+@st.cache(ttl=3540)
+def get_token(id, secret, auth_url):
     # POST
-    auth_response = requests.post(AUTH_URL, {
+    auth_response = requests.post(auth_url, {
         'grant_type': 'client_credentials',
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
+        'client_id': id,
+        'client_secret': secret
     })
 
     # convert response to JSON
@@ -34,20 +26,28 @@ def grab_data() -> DataFrame:
     # save the access token
     access_token = auth_response_data['access_token']
 
-    # hold track info
-    data = []
-
     # set request headers
-    headers = {
+    req_headers = {
         'Authorization': 'Bearer {token}'.format(token=access_token)
     }
+    return req_headers
+
+req_headers = get_token(CLIENT_ID, CLIENT_SECRET, AUTH_URL)
+
+@st.cache(ttl=3600, allow_output_mutation=True)
+def grab_data(req_headers) -> DataFrame:
+    '''
+    Grab data from Spotify API
+    '''
+    # hold track info
+    data = []
 
     BASE_URL = 'https://api.spotify.com/v1/' # api base url
     artist_id = '5Wh3G01Xfxn2zzEZNpuYHH' #BAND-MAID
 
     # pull all albums
     r = requests.get(BASE_URL + 'artists/' + artist_id + '/albums',
-            headers=headers,
+            headers=req_headers,
             params={'include_groups': 'album', 'limit': 50})
 
     # process data dump
@@ -56,10 +56,10 @@ def grab_data() -> DataFrame:
         if 'JP' in album['available_markets']: # only get the japanese releases
             album_name = album['name']
             # get the tracks from the album
-            r_a = requests.get(BASE_URL + 'albums/' + album['id'] + '/tracks', headers=headers)
+            r_a = requests.get(BASE_URL + 'albums/' + album['id'] + '/tracks', headers=req_headers)
             tracks = r_a.json()
             for track in tracks['items']:
-                f = requests.get(BASE_URL + 'audio-features/' + track['id'], headers=headers)
+                f = requests.get(BASE_URL + 'audio-features/' + track['id'], headers=req_headers)
                 f = f.json()
             
             # add some album info
@@ -98,12 +98,11 @@ def grab_data() -> DataFrame:
     # return the data frame
     return df    
 
-
 # Get some data
-df = grab_data()
+df = grab_data(req_headers)
 
 # List of albums. Call set to avoid duplicates
-album_names = sorted(set(df['album_name'].to_numpy(dtype=str)))
+album_names = set(df['album_name'].to_numpy(dtype=str))
 
 # List of metrics to look at
 metrics = ['energy',
